@@ -113,12 +113,92 @@ function deduplicateContentArray(arr, baseSystemArray = []) {
         const playSound = (type) => {
             if (!settings.soundEnabled) return;
             try {
-                if (settings.customSoundUrl && settings.customSoundUrl.trim()) {
-                    const audio = new Audio(settings.customSoundUrl.trim());
+                // =============== 两方音效配置 ===============
+                const category = (() => {
+                    // 新类型（按两方区分）
+                    if (type === 'my_send') return 'my_send';
+                    if (type === 'partner_message') return 'partner_message';
+                    if (type === 'my_poke') return 'my_poke';
+                    if (type === 'partner_poke') return 'partner_poke';
+                    // 兼容旧调用
+                    if (type === 'send') return 'my_send';
+                    if (type === 'message') return 'partner_message';
+                    if (type === 'poke') return 'my_poke';
+                    return null;
+                })();
+
+                const customUrlByCategory = (() => {
+                    if (!category) return '';
+                    if (category === 'my_send') return settings.mySendCustomSoundUrl || '';
+                    if (category === 'partner_message') return settings.partnerMessageCustomSoundUrl || '';
+                    if (category === 'my_poke') return settings.myPokeCustomSoundUrl || '';
+                    if (category === 'partner_poke') return settings.partnerPokeCustomSoundUrl || '';
+                    return '';
+                })();
+
+                const legacyCustomUrl = (settings.customSoundUrl || '').trim();
+                const resolvedCustomUrl = (customUrlByCategory && customUrlByCategory.trim())
+                    ? customUrlByCategory.trim()
+                    : legacyCustomUrl;
+
+                // 自定义 URL：只要填了就直接播放（不区分内置/预设）
+                if (resolvedCustomUrl) {
+                    const audio = new Audio(resolvedCustomUrl);
                     audio.volume = Math.min(1, Math.max(0, settings.soundVolume || 0.15));
                     audio.play().catch(() => {});
                     return;
                 }
+
+                // =============== 内置合成音效（两方 + 预设） ===============
+                const CATEGORY_BASE = {
+                    my_send: { osc1Type: 'sine', osc2Type: 'triangle', freq: 820, dur: 0.16, up: 1.08, down: 0.65 },
+                    partner_message: { osc1Type: 'sine', osc2Type: 'triangle', freq: 620, dur: 0.17, up: 1.05, down: 0.62 },
+                    my_poke: { osc1Type: 'triangle', osc2Type: 'sine', freq: 540, dur: 0.14, up: 1.18, down: 0.68 },
+                    partner_poke: { osc1Type: 'triangle', osc2Type: 'sine', freq: 540, dur: 0.14, up: 1.18, down: 0.68 }
+                };
+
+                const PRESET_EFFECTS = {
+                    // 预设 effect：允许覆盖波形与倍率（不填则沿用基础音色）
+                    tone_default: { osc1Type: null, osc2Type: null, fMul: 1, durMul: 1, upMul: 1, downMul: 1 },
+                    tone_soft: { osc1Type: 'sine', osc2Type: 'sine', fMul: 0.98, durMul: 1.1, upMul: 0.98, downMul: 0.98 },
+                    tone_bright: { osc1Type: 'triangle', osc2Type: 'triangle', fMul: 1.08, durMul: 0.9, upMul: 1.05, downMul: 0.97 },
+                    tone_deep: { osc1Type: 'sawtooth', osc2Type: 'triangle', fMul: 0.85, durMul: 1.2, upMul: 1.0, downMul: 0.9 },
+                    tone_mystic: { osc1Type: 'square', osc2Type: 'sine', fMul: 0.98, durMul: 1.0, upMul: 1.02, downMul: 1.0 },
+                    tone_sparkle: { osc1Type: 'sawtooth', osc2Type: 'triangle', fMul: 1.15, durMul: 0.8, upMul: 1.15, downMul: 1.05 }
+                };
+
+                const presetId = (() => {
+                    if (!category) return '';
+                    if (category === 'my_send') return settings.mySendSoundPreset || 'tone_default';
+                    if (category === 'partner_message') return settings.partnerMessageSoundPreset || 'tone_default';
+                    if (category === 'my_poke') return settings.myPokeSoundPreset || 'tone_default';
+                    if (category === 'partner_poke') return settings.partnerPokeSoundPreset || 'tone_default';
+                    return 'tone_default';
+                })();
+
+                const cfg = (() => {
+                    if (category && CATEGORY_BASE[category]) {
+                        const base = CATEGORY_BASE[category];
+                        const fx = PRESET_EFFECTS[presetId] || PRESET_EFFECTS.tone_default;
+                        const osc1Type = (typeof fx.osc1Type === 'string') ? fx.osc1Type : base.osc1Type;
+                        const osc2Type = (typeof fx.osc2Type === 'string') ? fx.osc2Type : base.osc2Type;
+                        const freq = base.freq * (fx.fMul || 1);
+                        const dur = base.dur * (fx.durMul || 1);
+                        const up = base.up * (fx.upMul || 1);
+                        const down = base.down * (fx.downMul || 1);
+                        return { osc1Type, osc2Type, freq, dur, up, down };
+                    }
+
+                    // 兼容其它旧声音类型（不走两方预设）
+                    if (type === 'favorite') return { osc1Type: 'sine', osc2Type: 'sine', freq: 1200, dur: 0.18, up: 1.06, down: 0.70 };
+                    if (type === 'anniversary') return { osc1Type: 'sawtooth', osc2Type: 'triangle', freq: 660, dur: 0.22, up: 1.10, down: 0.62 };
+                    if (type === 'mood') return { osc1Type: 'sine', osc2Type: 'square', freq: 440, dur: 0.16, up: 1.12, down: 0.60 };
+                    if (type === 'import') return { osc1Type: 'square', osc2Type: 'triangle', freq: 330, dur: 0.16, up: 1.25, down: 0.70 };
+                    if (type === 'export') return { osc1Type: 'triangle', osc2Type: 'sine', freq: 520, dur: 0.16, up: 1.15, down: 0.66 };
+                    if (type === 'error') return { osc1Type: 'sawtooth', osc2Type: 'square', freq: 180, dur: 0.14, up: 1.03, down: 0.42 };
+                    return { osc1Type: 'sine', osc2Type: 'triangle', freq: 600, dur: 0.15, up: 1.05, down: 0.60 };
+                })();
+
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const gainNode = audioContext.createGain();
                 const vol = Math.min(0.55, Math.max(0.01, settings.soundVolume || 0.1));
@@ -133,20 +213,6 @@ function deduplicateContentArray(arr, baseSystemArray = []) {
 
                 const now = audioContext.currentTime;
                 gainNode.gain.setValueAtTime(vol, now);
-
-                const cfg = (() => {
-                    // freq 为起始频率，duration 为总时长
-                    if (type === 'send') return { osc1Type: 'sine', osc2Type: 'triangle', freq: 820, dur: 0.16, up: 1.08, down: 0.65 };
-                    if (type === 'favorite') return { osc1Type: 'sine', osc2Type: 'sine', freq: 1200, dur: 0.18, up: 1.06, down: 0.70 };
-                    if (type === 'message') return { osc1Type: 'sine', osc2Type: 'triangle', freq: 620, dur: 0.17, up: 1.05, down: 0.62 };
-                    if (type === 'poke') return { osc1Type: 'triangle', osc2Type: 'sine', freq: 540, dur: 0.14, up: 1.18, down: 0.68 };
-                    if (type === 'anniversary') return { osc1Type: 'sawtooth', osc2Type: 'triangle', freq: 660, dur: 0.22, up: 1.10, down: 0.62 };
-                    if (type === 'mood') return { osc1Type: 'sine', osc2Type: 'square', freq: 440, dur: 0.16, up: 1.12, down: 0.60 };
-                    if (type === 'import') return { osc1Type: 'square', osc2Type: 'triangle', freq: 330, dur: 0.16, up: 1.25, down: 0.70 };
-                    if (type === 'export') return { osc1Type: 'triangle', osc2Type: 'sine', freq: 520, dur: 0.16, up: 1.15, down: 0.66 };
-                    if (type === 'error') return { osc1Type: 'sawtooth', osc2Type: 'square', freq: 180, dur: 0.14, up: 1.03, down: 0.42 };
-                    return { osc1Type: 'sine', osc2Type: 'triangle', freq: 600, dur: 0.15, up: 1.05, down: 0.60 };
-                })();
 
                 const jitter = (Math.random() - 0.5) * 0.02; // 轻微随机
                 const f1 = cfg.freq * (1 + jitter);

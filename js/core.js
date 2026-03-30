@@ -109,6 +109,15 @@ autoSendInterval: 5,
         readNoReplyChance: 0.2,
         timeFormat: 'HH:mm',
         customSoundUrl: '',
+        // 音效：两方分别可选（若对应 URL 为空则使用内置预设）
+        mySendSoundPreset: 'tone_default',
+        mySendCustomSoundUrl: '',
+        partnerMessageSoundPreset: 'tone_default',
+        partnerMessageCustomSoundUrl: '',
+        myPokeSoundPreset: 'tone_default',
+        myPokeCustomSoundUrl: '',
+        partnerPokeSoundPreset: 'tone_default',
+        partnerPokeCustomSoundUrl: '',
         soundVolume: 0.15,
         bottomCollapseMode: false,
         emojiMixEnabled: true
@@ -1267,6 +1276,22 @@ if (!isBatchMode && type === 'normal') {
                             }
                         } catch (e) {}
                     }, autoHideMs);
+
+                            // 更强兜底：硬性超时隐藏，避免异常/定时器被清导致“正在输入中”永远不消失
+                            if (window._typingIndicatorHardHideTimer) clearTimeout(window._typingIndicatorHardHideTimer);
+                            window._typingIndicatorHardHideTimer = setTimeout(function() {
+                                try {
+                                    var _tiW = document.getElementById('typing-indicator-wrapper');
+                                    if (_tiW && _tiW.style.display !== 'none') {
+                                        var _tiInner = _tiW.querySelector('.typing-indicator');
+                                        if (_tiInner) _tiInner.classList.add('hiding');
+                                        setTimeout(function() {
+                                            _tiW.style.display = 'none';
+                                            if (_tiInner) _tiInner.classList.remove('hiding');
+                                        }, 240);
+                                    }
+                                } catch (e) {}
+                            }, 60000);
                 } catch (e) {}
             }
             if (tiAvatar) {
@@ -1421,6 +1446,22 @@ if (!isBatchMode && type === 'normal') {
                                 }
                             } catch (e) {}
                         }, autoHideMs);
+
+                            // 更强兜底：硬性超时隐藏，避免异常/定时器被清导致“正在输入中”永远不消失
+                            if (window._typingIndicatorHardHideTimer) clearTimeout(window._typingIndicatorHardHideTimer);
+                            window._typingIndicatorHardHideTimer = setTimeout(function() {
+                                try {
+                                    var _tiW = document.getElementById('typing-indicator-wrapper');
+                                    if (_tiW && _tiW.style.display !== 'none') {
+                                        var _tiInner = _tiW.querySelector('.typing-indicator');
+                                        if (_tiInner) _tiInner.classList.add('hiding');
+                                        setTimeout(function() {
+                                            _tiW.style.display = 'none';
+                                            if (_tiInner) _tiInner.classList.remove('hiding');
+                                        }, 240);
+                                    }
+                                } catch (e) {}
+                            }, 60000);
                     } catch (e) {}
                 }
                 if (tiAvatar) {
@@ -1475,15 +1516,15 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                         timestamp: new Date(),
                         type: 'system'
                     });
-                    if (typeof playSound === 'function') playSound('poke');
-        (function(){try{if(window._typingIndicatorAutoHideTimer){clearTimeout(window._typingIndicatorAutoHideTimer);window._typingIndicatorAutoHideTimer=null;}}catch(e){}var _tiW=document.getElementById('typing-indicator-wrapper');if(_tiW){var _tiInner=_tiW.querySelector('.typing-indicator');if(_tiInner){_tiInner.classList.add('hiding');setTimeout(function(){_tiW.style.display='none';if(_tiInner)_tiInner.classList.remove('hiding');},240);}else{_tiW.style.display='none';}}})();
+                    if (typeof playSound === 'function') playSound('partner_poke');
+                (function(){try{if(window._typingIndicatorAutoHideTimer){clearTimeout(window._typingIndicatorAutoHideTimer);window._typingIndicatorAutoHideTimer=null;}if(window._typingIndicatorHardHideTimer){clearTimeout(window._typingIndicatorHardHideTimer);window._typingIndicatorHardHideTimer=null;}}catch(e){}var _tiW=document.getElementById('typing-indicator-wrapper');if(_tiW){var _tiInner=_tiW.querySelector('.typing-indicator');if(_tiInner){_tiInner.classList.add('hiding');setTimeout(function(){_tiW.style.display='none';if(_tiInner)_tiInner.classList.remove('hiding');},240);}else{_tiW.style.display='none';}}})();
         return;
     }
 }
 
             const replyCount = Math.random() < 0.75 ? 1: (Math.random() < 0.95 ? 2: 3);
             if (!customReplies || customReplies.length === 0) {
-                (function(){try{if(window._typingIndicatorAutoHideTimer){clearTimeout(window._typingIndicatorAutoHideTimer);window._typingIndicatorAutoHideTimer=null;}}catch(e){}var _tiW=document.getElementById('typing-indicator-wrapper');if(_tiW){var _tiInner=_tiW.querySelector('.typing-indicator');if(_tiInner){_tiInner.classList.add('hiding');setTimeout(function(){_tiW.style.display='none';if(_tiInner)_tiInner.classList.remove('hiding');},240);}else{_tiW.style.display='none';}}})();
+                (function(){try{if(window._typingIndicatorAutoHideTimer){clearTimeout(window._typingIndicatorAutoHideTimer);window._typingIndicatorAutoHideTimer=null;}if(window._typingIndicatorHardHideTimer){clearTimeout(window._typingIndicatorHardHideTimer);window._typingIndicatorHardHideTimer=null;}}catch(e){}var _tiW=document.getElementById('typing-indicator-wrapper');if(_tiW){var _tiInner=_tiW.querySelector('.typing-indicator');if(_tiInner){_tiInner.classList.add('hiding');setTimeout(function(){_tiW.style.display='none';if(_tiInner)_tiInner.classList.remove('hiding');},240);}else{_tiW.style.display='none';}}})();
                 showNotification('还没有添加字卡，请先到"自定义回复"中添加字卡', 'info', 4000);
                 return;
             }
@@ -1594,6 +1635,10 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                                 if (window._typingIndicatorAutoHideTimer) {
                                     clearTimeout(window._typingIndicatorAutoHideTimer);
                                     window._typingIndicatorAutoHideTimer = null;
+                                }
+                                if (window._typingIndicatorHardHideTimer) {
+                                    clearTimeout(window._typingIndicatorHardHideTimer);
+                                    window._typingIndicatorHardHideTimer = null;
                                 }
                             } catch (e) {}
                             var _tiW = document.getElementById('typing-indicator-wrapper');

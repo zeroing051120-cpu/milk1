@@ -172,10 +172,26 @@ if (target.classList.contains('delete-btn')) {
                 if (typeof window._sanitizePokeTextForDisplay === 'function') {
                     pokeText = window._sanitizePokeTextForDisplay(pokeText);
                 }
+                const pokeSaveChecked = document.getElementById('poke-save-to-library');
+                const shouldSaveToLibrary = pokeSaveChecked ? !!pokeSaveChecked.checked : false;
                 addMessage({
                     id: Date.now(), text: _formatPokeText(pokeText), timestamp: new Date(), type: 'system'
                 });
                 if (typeof playSound === 'function') playSound('poke');
+
+                if (shouldSaveToLibrary) {
+                    try {
+                        if (!Array.isArray(customPokes)) customPokes = [];
+                        const exists = customPokes.some(r => String(r) === String(pokeText));
+                        if (!exists) {
+                            customPokes.unshift(pokeText);
+                            if (typeof throttledSaveData === 'function') throttledSaveData();
+                            if (typeof renderReplyLibrary === 'function') renderReplyLibrary();
+                        }
+                    } catch (e) {
+                        console.warn('拍一拍保存到库失败:', e);
+                    }
+                }
                 hideModal(DOMElements.pokeModal.modal);
                 DOMElements.pokeModal.input.value = '';
                 const delayRange = settings.replyDelayMax - settings.replyDelayMin;
@@ -428,8 +444,28 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
     const svSlider = document.getElementById('sound-volume-slider');
     const svVal = document.getElementById('sound-volume-value');
     if (svSlider) { svSlider.value = Math.round((settings.soundVolume || 0.15) * 100); if (svVal) svVal.textContent = svSlider.value + '%'; }
-    const csi = document.getElementById('custom-sound-url-input');
-    if (csi) csi.value = settings.customSoundUrl || '';
+    const legacyCustom = (settings.customSoundUrl || '').trim();
+
+    const setSelect = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || 'tone_default';
+    };
+    const setInput = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+    };
+
+    setSelect('sound-my-send-preset', settings.mySendSoundPreset || 'tone_default');
+    setInput('sound-my-send-custom-url', (settings.mySendCustomSoundUrl || '').trim() || legacyCustom);
+
+    setSelect('sound-partner-message-preset', settings.partnerMessageSoundPreset || 'tone_default');
+    setInput('sound-partner-message-custom-url', (settings.partnerMessageCustomSoundUrl || '').trim() || legacyCustom);
+
+    setSelect('sound-my-poke-preset', settings.myPokeSoundPreset || 'tone_default');
+    setInput('sound-my-poke-custom-url', (settings.myPokeCustomSoundUrl || '').trim() || legacyCustom);
+
+    setSelect('sound-partner-poke-preset', settings.partnerPokeSoundPreset || 'tone_default');
+    setInput('sound-partner-poke-custom-url', (settings.partnerPokeCustomSoundUrl || '').trim() || legacyCustom);
     document.querySelectorAll('.time-fmt-opt').forEach(opt => {
         opt.classList.toggle('active', opt.dataset.fmt === (settings.timeFormat || 'HH:mm'));
     });
@@ -1048,18 +1084,48 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
                 });
                 soundVolSlider.addEventListener('change', throttledSaveData);
             }
-            const customSoundInput = document.getElementById('custom-sound-url-input');
-            if (customSoundInput) {
-                customSoundInput.value = settings.customSoundUrl || '';
-                customSoundInput.addEventListener('change', () => {
-                    settings.customSoundUrl = customSoundInput.value.trim();
+
+            const bindPresetSelect = (selectId, settingsKey) => {
+                const el = document.getElementById(selectId);
+                if (!el) return;
+                el.value = settings[settingsKey] || 'tone_default';
+                el.addEventListener('change', () => {
+                    settings[settingsKey] = el.value || 'tone_default';
                     throttledSaveData();
                 });
-            }
-            const testSoundBtn = document.getElementById('test-sound-btn');
-            if (testSoundBtn) {
-                testSoundBtn.addEventListener('click', () => { playSound('message'); });
-            }
+            };
+
+            bindPresetSelect('sound-my-send-preset', 'mySendSoundPreset');
+            bindPresetSelect('sound-partner-message-preset', 'partnerMessageSoundPreset');
+            bindPresetSelect('sound-my-poke-preset', 'myPokeSoundPreset');
+            bindPresetSelect('sound-partner-poke-preset', 'partnerPokeSoundPreset');
+
+            const bindCustomUrlInput = (inputId, settingsKey) => {
+                const el = document.getElementById(inputId);
+                if (!el) return;
+                el.addEventListener('change', () => {
+                    settings[settingsKey] = el.value.trim();
+                    throttledSaveData();
+                });
+            };
+
+            bindCustomUrlInput('sound-my-send-custom-url', 'mySendCustomSoundUrl');
+            bindCustomUrlInput('sound-partner-message-custom-url', 'partnerMessageCustomSoundUrl');
+            bindCustomUrlInput('sound-my-poke-custom-url', 'myPokeCustomSoundUrl');
+            bindCustomUrlInput('sound-partner-poke-custom-url', 'partnerPokeCustomSoundUrl');
+
+            const btnMySend = document.getElementById('test-sound-my-send-btn');
+            if (btnMySend) btnMySend.addEventListener('click', () => playSound('my_send'));
+
+            const btnPartnerMsg = document.getElementById('test-sound-partner-message-btn');
+            if (btnPartnerMsg) btnPartnerMsg.addEventListener('click', () => playSound('partner_message'));
+
+            const btnMyPoke = document.getElementById('test-sound-my-poke-btn');
+            if (btnMyPoke) btnMyPoke.addEventListener('click', () => playSound('my_poke'));
+
+            const btnPartnerPoke = document.getElementById('test-sound-partner-poke-btn');
+            if (btnPartnerPoke) btnPartnerPoke.addEventListener('click', () => playSound('partner_poke'));
+
             document.querySelectorAll('.time-fmt-opt').forEach(opt => {
                 opt.classList.toggle('active', opt.dataset.fmt === (settings.timeFormat || 'HH:mm'));
                 opt.addEventListener('click', () => {
