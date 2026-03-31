@@ -5345,6 +5345,7 @@
         .ann-header-card {
     background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-color-dark, var(--accent-color)) 60%, rgba(var(--accent-color-rgb),0.7) 100%);
     color: #fff;
+    opacity: 0.72;
     padding: 0;
     text-align: center;
     flex-shrink: 0;

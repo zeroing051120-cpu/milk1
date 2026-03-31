@@ -110,13 +110,13 @@ autoSendInterval: 5,
         timeFormat: 'HH:mm',
         customSoundUrl: '',
         // 音效：两方分别可选（若对应 URL 为空则使用内置预设）
-        mySendSoundPreset: 'tone_default',
+        mySendSoundPreset: 'tone_low',
         mySendCustomSoundUrl: '',
-        partnerMessageSoundPreset: 'tone_default',
+        partnerMessageSoundPreset: 'tone_low',
         partnerMessageCustomSoundUrl: '',
-        myPokeSoundPreset: 'tone_default',
+        myPokeSoundPreset: 'tone_low',
         myPokeCustomSoundUrl: '',
-        partnerPokeSoundPreset: 'tone_default',
+        partnerPokeSoundPreset: 'tone_low',
         partnerPokeCustomSoundUrl: '',
         soundVolume: 0.15,
         bottomCollapseMode: false,
@@ -1231,10 +1231,11 @@ if (!isBatchMode && type === 'normal') {
     const delayRange = settings.replyDelayMax - settings.replyDelayMin;
     const randomDelay = settings.replyDelayMin + Math.random() * delayRange;
 
-    const shouldIgnore = settings.allowReadNoReply && (Math.random() < 0.5);
+    const chance = Math.max(0, Math.min(1, Number(settings.readNoReplyChance) || 0));
+    const shouldIgnore = settings.allowReadNoReply && (Math.random() < chance);
 
     const readDelay = 1500 + Math.random() * 2500;
-    setTimeout(() => {
+                setTimeout(() => {
         let changed = false;
         messages.forEach(msg => {
             if (msg.sender === 'user' && msg.status !== 'read') {
@@ -1471,7 +1472,7 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                 }
             }
             if (Math.random() < 0.03) {
-                // 对方拍一拍仅使用内置动作，不读取我方自定义拍一拍库
+                // 对方的“拍一拍”只使用内置动作，不读取我方自定义拍一拍库
                 if (CONSTANTS.POKE_ACTIONS && CONSTANTS.POKE_ACTIONS.length > 0) {
                     let randomAction = getRandomItem(CONSTANTS.POKE_ACTIONS);
                     if (typeof window._sanitizePokeTextForDisplay === 'function') {
@@ -1526,6 +1527,7 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                 const delayRange = settings.replyDelayMax - settings.replyDelayMin;
                 delay += settings.replyDelayMin + Math.random() * delayRange;
                 setTimeout(() => {
+                    try {
                     const replyPool = replyPoolOnce;
                     // 被屏蔽或无效项直接换下一个，尽量保证每次都产出可用回复
                     let replyText = '';
@@ -1639,6 +1641,17 @@ if (partnerPersonas && partnerPersonas.length > 0 && Math.random() < 0.3) {
                                 }
                             }
                         })();
+                    }
+                    } catch (e) {
+                        console.error('[simulateReply] 渲染/回填出错:', e);
+                        // 机制性兜底：出错时至少让“正在输入中”消失，避免假死
+                        try {
+                            (function(){
+                                try { if (window._typingIndicatorAutoHideTimer) { clearTimeout(window._typingIndicatorAutoHideTimer); window._typingIndicatorAutoHideTimer = null; } } catch (e2) {}
+                                var _tiW2 = document.getElementById('typing-indicator-wrapper');
+                                if (_tiW2) _tiW2.style.display = 'none';
+                            })();
+                        } catch (e2) {}
                     }
                 }, delay);
             }

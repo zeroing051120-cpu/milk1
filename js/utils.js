@@ -137,9 +137,26 @@ function deduplicateContentArray(arr, baseSystemArray = []) {
                 })();
 
                 const legacyCustomUrl = (settings.customSoundUrl || '').trim();
-                const resolvedCustomUrl = (customUrlByCategory && customUrlByCategory.trim())
+                const resolvedCustomUrlBase = (customUrlByCategory && customUrlByCategory.trim())
                     ? customUrlByCategory.trim()
                     : legacyCustomUrl;
+
+                const KAKAO_TALK_URL = 'https://image.uglycat.cc/jl5xf9.mp3';
+
+                // 预设音效（无音效 / kakaoTalk）需要优先级高于自定义 URL
+                const presetId = (() => {
+                    if (!category) return '';
+                    if (category === 'my_send') return settings.mySendSoundPreset || 'tone_low';
+                    if (category === 'partner_message') return settings.partnerMessageSoundPreset || 'tone_low';
+                    if (category === 'my_poke') return settings.myPokeSoundPreset || 'tone_low';
+                    if (category === 'partner_poke') return settings.partnerPokeSoundPreset || 'tone_low';
+                    return 'tone_low';
+                })();
+
+                if (presetId === 'mute') return;
+
+                // kakaoTalk 作为“固定预设”，选择它就播放对应音频
+                let resolvedCustomUrl = (presetId === 'kakaotalk') ? KAKAO_TALK_URL : resolvedCustomUrlBase;
 
                 // 自定义 URL：只要填了就直接播放（不区分内置/预设）
                 if (resolvedCustomUrl) {
@@ -167,14 +184,7 @@ function deduplicateContentArray(arr, baseSystemArray = []) {
                     tone_haze: { osc1Type: 'sine', osc2Type: 'square', fMul: 0.8, durMul: 1.18, upMul: 0.97, downMul: 0.9 }
                 };
 
-                const presetId = (() => {
-                    if (!category) return '';
-                    if (category === 'my_send') return settings.mySendSoundPreset || 'tone_default';
-                    if (category === 'partner_message') return settings.partnerMessageSoundPreset || 'tone_default';
-                    if (category === 'my_poke') return settings.myPokeSoundPreset || 'tone_default';
-                    if (category === 'partner_poke') return settings.partnerPokeSoundPreset || 'tone_default';
-                    return 'tone_default';
-                })();
+                // presetId 已在上方计算
 
                 const cfg = (() => {
                     if (category && CATEGORY_BASE[category]) {

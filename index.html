@@ -1200,6 +1200,8 @@
                                     <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">我发出的消息音效</div>
                                     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
                                         <select id="sound-my-send-preset" style="flex:1;padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);">
+                                            <option value="mute">无音效</option>
+                                            <option value="kakaotalk">kakaotalk</option>
                                             <option value="tone_default">内置：默认</option>
                                             <option value="tone_soft">内置：柔和</option>
                                             <option value="tone_low">内置：低沉</option>
@@ -1216,6 +1218,8 @@
                                     <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">对方发来的消息音效</div>
                                     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
                                         <select id="sound-partner-message-preset" style="flex:1;padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);">
+                                            <option value="mute">无音效</option>
+                                            <option value="kakaotalk">kakaotalk</option>
                                             <option value="tone_default">内置：默认</option>
                                             <option value="tone_soft">内置：柔和</option>
                                             <option value="tone_low">内置：低沉</option>
@@ -1232,6 +1236,8 @@
                                     <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">我拍一拍音效</div>
                                     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
                                         <select id="sound-my-poke-preset" style="flex:1;padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);">
+                                            <option value="mute">无音效</option>
+                                            <option value="kakaotalk">kakaotalk</option>
                                             <option value="tone_default">内置：默认</option>
                                             <option value="tone_soft">内置：柔和</option>
                                             <option value="tone_low">内置：低沉</option>
@@ -1248,6 +1254,8 @@
                                     <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">对方拍一拍音效</div>
                                     <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
                                         <select id="sound-partner-poke-preset" style="flex:1;padding:7px 10px;border:1px solid var(--border-color);border-radius:8px;font-size:12px;background:var(--primary-bg);color:var(--text-primary);outline:none;font-family:var(--font-family);">
+                                            <option value="mute">无音效</option>
+                                            <option value="kakaotalk">kakaotalk</option>
                                             <option value="tone_default">内置：默认</option>
                                             <option value="tone_soft">内置：柔和</option>
                                             <option value="tone_low">内置：低沉</option>
@@ -1921,6 +1929,13 @@
                     <div class="ann-header-date" id="ann-header-date">--/--</div>
                     <div class="ann-header-milestones" id="ann-header-milestones"></div>
                 </div>
+            </div>
+            <div class="ann-data-tabs" id="ann-data-tabs" style="display:flex;gap:8px;align-items:center;padding:10px 14px 6px;border-bottom:1px solid var(--border-color);background:linear-gradient(180deg, rgba(var(--accent-color-rgb),0.05), transparent);">
+                <button id="ann-tab-card" onclick="window.switchAnnDataTab && window.switchAnnDataTab('card')" class="ann-tab-btn" style="flex:1;padding:8px 10px;border-radius:12px;border:1px solid var(--border-color);background:var(--secondary-bg);color:var(--text-secondary);cursor:pointer;font-size:12px;font-family:var(--font-family);">卡片</button>
+                <button id="ann-tab-data" onclick="window.switchAnnDataTab && window.switchAnnDataTab('data')" class="ann-tab-btn" style="flex:1;padding:8px 10px;border-radius:12px;border:none;background:rgba(var(--accent-color-rgb),0.16);color:var(--accent-color);cursor:pointer;font-size:12px;font-family:var(--font-family);">数据</button>
+            </div>
+            <div id="ann-data-panel" style="display:none;padding:10px 14px 0;overflow:hidden;">
+                <div id="ann-data-milestones" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
             </div>
             <div id="ann-card-toolbar" style="display:none; padding:6px 14px 2px; align-items:center; justify-content:flex-end; gap:8px;">
                 <button class="ann-header-upload-btn" onclick="document.getElementById('ann-header-bg-input').click()" title="更换背景图" style="position:static; background:rgba(var(--accent-color-rgb),0.1); border-color:rgba(var(--accent-color-rgb),0.3); color:var(--accent-color);">

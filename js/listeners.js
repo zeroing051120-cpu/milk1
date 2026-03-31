@@ -448,23 +448,23 @@ if (_chatSettingsEl) _chatSettingsEl.addEventListener('click', () => {
 
     const setSelect = (id, val) => {
         const el = document.getElementById(id);
-        if (el) el.value = val || 'tone_default';
+        if (el) el.value = val || 'tone_low';
     };
     const setInput = (id, val) => {
         const el = document.getElementById(id);
         if (el) el.value = val || '';
     };
 
-    setSelect('sound-my-send-preset', settings.mySendSoundPreset || 'tone_default');
+    setSelect('sound-my-send-preset', settings.mySendSoundPreset || 'tone_low');
     setInput('sound-my-send-custom-url', (settings.mySendCustomSoundUrl || '').trim() || legacyCustom);
 
-    setSelect('sound-partner-message-preset', settings.partnerMessageSoundPreset || 'tone_default');
+    setSelect('sound-partner-message-preset', settings.partnerMessageSoundPreset || 'tone_low');
     setInput('sound-partner-message-custom-url', (settings.partnerMessageCustomSoundUrl || '').trim() || legacyCustom);
 
-    setSelect('sound-my-poke-preset', settings.myPokeSoundPreset || 'tone_default');
+    setSelect('sound-my-poke-preset', settings.myPokeSoundPreset || 'tone_low');
     setInput('sound-my-poke-custom-url', (settings.myPokeCustomSoundUrl || '').trim() || legacyCustom);
 
-    setSelect('sound-partner-poke-preset', settings.partnerPokeSoundPreset || 'tone_default');
+    setSelect('sound-partner-poke-preset', settings.partnerPokeSoundPreset || 'tone_low');
     setInput('sound-partner-poke-custom-url', (settings.partnerPokeCustomSoundUrl || '').trim() || legacyCustom);
     document.querySelectorAll('.time-fmt-opt').forEach(opt => {
         opt.classList.toggle('active', opt.dataset.fmt === (settings.timeFormat || 'HH:mm'));
