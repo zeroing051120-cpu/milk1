@@ -446,7 +446,6 @@ async function importAllData(file) {
                 ">
                     <div style="width:36px;height:4px;border-radius:2px;background:var(--border-color);margin:0 auto 14px;"></div>
                     <div style="font-size:16px;font-weight:800;color:var(--text-primary);margin-bottom:10px;">全量恢复：选择要导入的部分</div>
-                    <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">支持 v5 ZIP（推荐）、v4 JSON 与旧版；媒体从去重表或 ZIP 内 media/ 还原。</div>
                     <div style="display:flex;flex-direction:column;gap:10px;max-height:60vh;overflow:auto;padding-right:6px;">
                         ${categories.map(c => {
                             return `
