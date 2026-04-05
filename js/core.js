@@ -28,13 +28,9 @@
 
     function closeDialog() { overlay.remove(); }
     overlay.addEventListener('click', e => { if (e.target === overlay) closeDialog(); });
-    const _resetCancelBtn = document.getElementById('_reset_cancel');
-    const _resetCurrentBtn = document.getElementById('_reset_current');
-    const _resetAllBtn = document.getElementById('_reset_all');
+    document.getElementById('_reset_cancel').onclick = closeDialog;
 
-    if (_resetCancelBtn) _resetCancelBtn.onclick = closeDialog;
-
-    if (_resetCurrentBtn) _resetCurrentBtn.onclick = () => {
+    document.getElementById('_reset_current').onclick = () => {
         closeDialog();
         if (confirm('确定要清除当前会话的所有消息吗？此操作无法恢复！')) {
             messages = [];
@@ -53,7 +49,7 @@
         }
     };
 
-    if (_resetAllBtn) _resetAllBtn.onclick = () => {
+    document.getElementById('_reset_all').onclick = () => {
         closeDialog();
         if (confirm('【高危操作】确定要重置所有数据吗？此操作将清除所有本地数据且无法恢复！')) {
             window._skipBackup = true;
@@ -1710,16 +1706,14 @@ function showModal(modalElement, focusElement = null) {
 
             function closeDialog() { overlay.remove(); }
             overlay.addEventListener('click', e => { if (e.target === overlay) closeDialog(); });
-            const _expCancelBtn = document.getElementById('_exp_cancel');
-            const _expConfirmBtn = document.getElementById('_exp_confirm');
-            if (_expCancelBtn) _expCancelBtn.onclick = closeDialog;
+            document.getElementById('_exp_cancel').onclick = closeDialog;
 
-            if (_expConfirmBtn) _expConfirmBtn.onclick = function() {
-                const inclMsgs     = !!document.getElementById('_exp_msgs')?.checked;
-                const inclSettings = !!document.getElementById('_exp_settings')?.checked;
-                const inclReplies  = !!document.getElementById('_exp_replies')?.checked;
-                const inclAnn      = !!document.getElementById('_exp_ann')?.checked;
-                const inclThemes   = !!document.getElementById('_exp_themes')?.checked;
+            document.getElementById('_exp_confirm').onclick = function() {
+                const inclMsgs     = document.getElementById('_exp_msgs').checked;
+                const inclSettings = document.getElementById('_exp_settings').checked;
+                const inclReplies  = document.getElementById('_exp_replies').checked;
+                const inclAnn      = document.getElementById('_exp_ann').checked;
+                const inclThemes   = document.getElementById('_exp_themes').checked;
 
                 if (!inclMsgs && !inclSettings && !inclReplies && !inclAnn && !inclThemes) {
                     showNotification('请至少选择一项导出内容', 'error');
@@ -1816,7 +1810,84 @@ function showModal(modalElement, focusElement = null) {
                 try {
                     let rawText = e.target.result;
                     if (rawText.charCodeAt(0) === 0xFEFF) rawText = rawText.slice(1);
-                    const importedData = JSON.parse(rawText);
+                    let importedData = JSON.parse(rawText);
+
+                    // 兼容全量备份格式（type:'full' 或含 indexedDB/localforage 字段）
+                    // 将其转换为 importChatHistory 能识别的标准字段
+                    if (importedData && typeof importedData === 'object' &&
+                        (importedData.type === 'full' || importedData.indexedDB || importedData.localforage) &&
+                        !importedData.messages && !importedData.settings) {
+
+                        const idb = importedData.indexedDB || importedData.localforage || {};
+                        const ls  = importedData.localStorage || {};
+                        const allKv = Object.assign({}, idb, ls);
+
+                        // 找到 sessionId（取第一个带 _chatMessages 的键前缀）
+                        let detectedSid = null;
+                        const appPfx = importedData.appPrefix || 'CHAT_APP_V3_';
+                        for (const k of Object.keys(allKv)) {
+                            if (k.indexOf('_chatMessages') !== -1 && k.startsWith(appPfx)) {
+                                const after = k.slice(appPfx.length);
+                                const u = after.indexOf('_');
+                                if (u > 0) { detectedSid = after.slice(0, u); break; }
+                            }
+                        }
+
+                        const pfxSid = detectedSid ? (appPfx + detectedSid + '_') : null;
+                        const getVal = (suffix) => {
+                            if (pfxSid) {
+                                const v = allKv[pfxSid + suffix];
+                                if (v !== undefined && v !== null) return v;
+                            }
+                            // 无前缀回退
+                            return allKv[suffix] !== undefined ? allKv[suffix] : null;
+                        };
+                        const parseVal = (v) => {
+                            if (v === null || v === undefined) return null;
+                            if (typeof v !== 'string') return v;
+                            try { return JSON.parse(v); } catch(e2) { return v; }
+                        };
+
+                        const converted = {
+                            version: importedData.version || '3.1',
+                            appName:  importedData.appName || 'ChatApp',
+                            exportDate: importedData.exportDate || importedData.timestamp || new Date().toISOString(),
+                            exportModules: []
+                        };
+
+                        const msgs = parseVal(getVal('chatMessages'));
+                        if (Array.isArray(msgs)) { converted.messages = msgs; converted.exportModules.push('messages'); }
+
+                        const chatSettings = parseVal(getVal('chatSettings'));
+                        if (chatSettings && typeof chatSettings === 'object') {
+                            converted.settings = chatSettings;
+                            converted.exportModules.push('settings');
+                        }
+                        // 额外的 localStorage 设置字段
+                        const dgCustomData = parseVal(ls['dg_custom_data'] !== undefined ? ls['dg_custom_data'] : null);
+                        if (dgCustomData) converted.dgCustomData = dgCustomData;
+                        const dgStatusPool = parseVal(ls['dg_status_pool'] !== undefined ? ls['dg_status_pool'] : null);
+                        if (dgStatusPool) converted.dgStatusPool = dgStatusPool;
+                        const customWeatherMap = {};
+                        for (const wk of Object.keys(ls)) {
+                            if (wk && wk.startsWith('customWeather_')) customWeatherMap[wk] = ls[wk];
+                        }
+                        if (Object.keys(customWeatherMap).length) converted.customWeatherMap = customWeatherMap;
+
+                        const replies = parseVal(getVal('customReplies'));
+                        if (Array.isArray(replies)) { converted.customReplies = replies; converted.exportModules.push('customReplies'); }
+
+                        const emojis = parseVal(getVal('customEmojis'));
+                        if (Array.isArray(emojis)) converted.customEmojis = emojis;
+
+                        const ann = parseVal(getVal('anniversaries'));
+                        if (Array.isArray(ann)) { converted.anniversaries = ann; converted.exportModules.push('anniversaries'); }
+
+                        const themes = parseVal(allKv[appPfx + 'customThemes'] !== undefined ? allKv[appPfx + 'customThemes'] : (ls[appPfx + 'customThemes'] || null));
+                        if (themes) { converted.customThemes = themes; converted.exportModules.push('themes'); }
+
+                        importedData = converted;
+                    }
 
                     const hasMessages  = importedData.messages && Array.isArray(importedData.messages);
                     const hasSettings  = !!importedData.settings;
@@ -1864,16 +1935,14 @@ function showModal(modalElement, focusElement = null) {
 
                     function closeDialog() { overlay.remove(); }
                     overlay.addEventListener('click', ev => { if (ev.target === overlay) closeDialog(); });
-                    const _impCancelBtn = document.getElementById('_imp_cancel');
-                    const _impConfirmBtn = document.getElementById('_imp_confirm');
-                    if (_impCancelBtn) _impCancelBtn.onclick = closeDialog;
+                    document.getElementById('_imp_cancel').onclick = closeDialog;
 
-                    if (_impConfirmBtn) _impConfirmBtn.onclick = function() {
-                        const doMsgs     = hasMessages  && !!document.getElementById('_imp_msgs')?.checked;
-                        const doSettings = hasSettings  && !!document.getElementById('_imp_settings')?.checked;
-                        const doReplies  = hasReplies   && !!document.getElementById('_imp_replies')?.checked;
-                        const doAnn      = hasAnn       && !!document.getElementById('_imp_ann')?.checked;
-                        const doThemes   = hasThemes    && !!document.getElementById('_imp_themes')?.checked;
+                    document.getElementById('_imp_confirm').onclick = function() {
+                        const doMsgs     = hasMessages  && document.getElementById('_imp_msgs')?.checked;
+                        const doSettings = hasSettings  && document.getElementById('_imp_settings')?.checked;
+                        const doReplies  = hasReplies   && document.getElementById('_imp_replies')?.checked;
+                        const doAnn      = hasAnn       && document.getElementById('_imp_ann')?.checked;
+                        const doThemes   = hasThemes    && document.getElementById('_imp_themes')?.checked;
 
                         if (!doMsgs && !doSettings && !doReplies && !doAnn && !doThemes) {
                             showNotification('请至少选择一项导入内容', 'error');
