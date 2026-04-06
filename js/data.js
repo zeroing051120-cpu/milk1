@@ -71,6 +71,18 @@
         +       '<div class="dm-row-icon" style="background:rgba(62,207,142,0.12)"><i class="fas fa-server" style="color:#3ECF8E"></i></div>'
         +       '<div class="dm-row-info"><div class="dm-row-title">云端更新时间</div><div class="dm-row-desc" id="dm-cloud-backup-time">暂无</div></div>'
         +     '</div>'
+        +     '<div class="dm-row-item" id="dm-cloud-auto-sync-row" style="align-items:flex-start;">'
+        +       '<div class="dm-row-icon" style="background:rgba(62,207,142,0.12)"><i class="fas fa-clock" style="color:#3ECF8E"></i></div>'
+        +       '<div class="dm-row-info" style="min-width:0;">'
+        +         '<div class="dm-row-title">自动上传到云端</div>'
+        +         '<div class="dm-row-desc" id="dm-cloud-auto-sync-desc">关闭状态</div>'
+        +         '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap;">'
+        +           '<input type="number" id="dm-cloud-auto-sync-interval" min="1" max="360" step="1" value="10" style="width:86px;padding:8px 10px;border:1px solid var(--border-color);border-radius:10px;background:var(--primary-bg);color:var(--text-primary);font-size:12px;font-family:var(--font-family);outline:none;">'
+        +           '<span style="font-size:12px;color:var(--text-secondary);">分钟上传一次</span>'
+        +         '</div>'
+        +       '</div>'
+        +       '<label class="dm-toggle-pill" style="margin-left:8px;margin-top:4px;"><input type="checkbox" id="dm-cloud-auto-sync-toggle"><span class="dm-toggle-slider"></span></label>'
+        +     '</div>'
         +     '<div class="dm-row-item" style="padding: 12px 16px;">'
         +       '<div class="dm-row-item-action-group" style="width: 100%; display: flex; gap: 10px;">'
         +         '<button class="dm-nav-btn" id="dm-supabase-check-btn" onclick="window.checkSupabaseCloud()" style="width:auto; flex:1; padding: 10px; border-radius: 12px;"><i class="fas fa-rotate"></i><span style="margin-left:6px;">检查云端</span></button>'
@@ -417,6 +429,8 @@
         var supabaseGuideBtn = mc.querySelector('#dm-supabase-guide-btn');
         var supabaseCheckBtn = mc.querySelector('#dm-supabase-check-btn');
         var supabaseSyncBtn = mc.querySelector('#dm-supabase-sync-btn');
+        var cloudAutoSyncToggle = mc.querySelector('#dm-cloud-auto-sync-toggle');
+        var cloudAutoSyncInterval = mc.querySelector('#dm-cloud-auto-sync-interval');
 
         if (supabaseGuideRow) supabaseGuideRow.addEventListener('click', function () {
             if (typeof openSupabaseGuide === 'function') openSupabaseGuide(false);
@@ -431,6 +445,40 @@
         if (supabaseSyncBtn) supabaseSyncBtn.addEventListener('click', function () {
             if (typeof syncSupabaseCloud === 'function') syncSupabaseCloud();
         });
+        if (cloudAutoSyncToggle && typeof window.syncCloudAutoSyncSettingsUI === 'function') {
+            cloudAutoSyncToggle.addEventListener('change', function () {
+                if (typeof settings === 'undefined') return;
+                settings.cloudAutoSyncEnabled = !!cloudAutoSyncToggle.checked;
+                if (typeof window.applyCloudAutoSyncSettings === 'function') {
+                    window.applyCloudAutoSyncSettings('toggle');
+                }
+            });
+        }
+        if (cloudAutoSyncInterval && typeof window.syncCloudAutoSyncSettingsUI === 'function') {
+            cloudAutoSyncInterval.addEventListener('input', function () {
+                var val = parseInt(cloudAutoSyncInterval.value, 10);
+                if (!Number.isFinite(val)) return;
+                if (val < 1) val = 1;
+                if (val > 360) val = 360;
+                cloudAutoSyncInterval.value = String(val);
+                if (typeof settings === 'undefined') return;
+                settings.cloudAutoSyncInterval = val;
+                if (typeof window.syncCloudAutoSyncSettingsUI === 'function') {
+                    window.syncCloudAutoSyncSettingsUI();
+                }
+            });
+            cloudAutoSyncInterval.addEventListener('change', function () {
+                var val = parseInt(cloudAutoSyncInterval.value, 10);
+                if (!Number.isFinite(val)) val = 10;
+                val = Math.min(360, Math.max(1, val));
+                cloudAutoSyncInterval.value = String(val);
+                if (typeof settings === 'undefined') return;
+                settings.cloudAutoSyncInterval = val;
+                if (typeof window.applyCloudAutoSyncSettings === 'function') {
+                    window.applyCloudAutoSyncSettings('interval-change');
+                }
+            });
+        }
 
         var creditsBtn = mc.querySelector('#open-credits-btn');
         if (creditsBtn) creditsBtn.addEventListener('click', function () {
@@ -463,6 +511,7 @@
         setTimeout(function () {
             updateStats();
             syncToggles();
+            if (typeof window.syncCloudAutoSyncSettingsUI === 'function') window.syncCloudAutoSyncSettingsUI();
             if (typeof refreshCloudSyncInfo === 'function') refreshCloudSyncInfo();
         }, 60);
     }

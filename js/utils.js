@@ -514,6 +514,83 @@ const CLOUD_SYNC_META_KEY = 'CHATAPP_CLOUD_SYNC_META_V1';
 const CLOUD_SYNC_CONFIG_KEY = 'CHATAPP_SUPABASE_CONFIG_V1';
 const CLOUD_SYNC_SINGLE_BACKUP_ID = 'SINGLE_USER_BACKUP';
 
+let cloudAutoSyncTimer = null;
+let cloudAutoSyncInFlight = false;
+let cloudAutoSyncDirty = false;
+
+function getNormalizedCloudAutoSyncSettings() {
+    const enabled = !!(settings && settings.cloudAutoSyncEnabled);
+    const rawInterval = Number(settings && settings.cloudAutoSyncInterval);
+    const interval = Math.min(360, Math.max(1, Number.isFinite(rawInterval) ? rawInterval : 10));
+    if (settings) {
+        settings.cloudAutoSyncInterval = interval;
+    }
+    return {
+        enabled,
+        interval
+    };
+}
+
+function getCloudAutoSyncStatusText() {
+    const cfg = getNormalizedCloudAutoSyncSettings();
+    if (!cfg.enabled) return '自动上传已关闭';
+    if (cloudAutoSyncInFlight) return `自动上传进行中（每 ${cfg.interval} 分钟）`;
+    if (cloudAutoSyncDirty) return `检测到本地变更，等待自动上传（每 ${cfg.interval} 分钟）`;
+    return `自动上传已开启（每 ${cfg.interval} 分钟）`;
+}
+
+function manageCloudAutoSyncTimer() {
+    if (cloudAutoSyncTimer) {
+        clearInterval(cloudAutoSyncTimer);
+        cloudAutoSyncTimer = null;
+    }
+
+    const cfg = getNormalizedCloudAutoSyncSettings();
+    if (!cfg.enabled) return;
+
+    const intervalMs = cfg.interval * 60 * 1000;
+    cloudAutoSyncTimer = setInterval(function() {
+        triggerCloudAutoSync('auto-timer').catch(function(err) {
+            console.error('[triggerCloudAutoSync]', err);
+        });
+    }, intervalMs);
+}
+
+async function triggerCloudAutoSync(reason) {
+    const cfg = getNormalizedCloudAutoSyncSettings();
+    if (!cfg.enabled || !cloudAutoSyncDirty || cloudAutoSyncInFlight) return false;
+
+    const cloudCfg = getCloudSyncConfig();
+    if (!cloudCfg || !cloudCfg.url || !cloudCfg.anonKey) return false;
+
+    if (!window.supabase || typeof window.supabase.createClient !== 'function') return false;
+
+    cloudAutoSyncInFlight = true;
+    updateCloudSyncStatusUI({
+        statusText: getCloudAutoSyncStatusText()
+    });
+
+    try {
+        await uploadLocalSnapshotToCloud(reason || 'cloud-auto-sync', { silent: true });
+        cloudAutoSyncDirty = false;
+        updateCloudSyncStatusUI({
+            statusText: getCloudAutoSyncStatusText()
+        });
+        return true;
+    } catch (e) {
+        console.error('[cloudAutoSync]', e);
+        updateCloudSyncStatusUI({
+            statusText: '自动上传失败，请检查云端配置或网络'
+        });
+        return false;
+    } finally {
+        cloudAutoSyncInFlight = false;
+        updateCloudSyncStatusUI({
+            statusText: getCloudAutoSyncStatusText()
+        });
+    }
+}
+
 function getCloudSyncConfig() {
     try {
         const raw = localStorage.getItem(CLOUD_SYNC_CONFIG_KEY);
@@ -632,6 +709,40 @@ function updateCloudSyncStatusUI(state) {
     if (syncBtn) syncBtn.innerHTML = '<i class="fas fa-cloud-arrow-up"></i><span style="margin-left:6px;">同步数据</span>';
 }
 
+window.syncCloudAutoSyncSettingsUI = function() {
+    const toggle = document.getElementById('dm-cloud-auto-sync-toggle');
+    const intervalInput = document.getElementById('dm-cloud-auto-sync-interval');
+    const desc = document.getElementById('dm-cloud-auto-sync-desc');
+    const cfg = getNormalizedCloudAutoSyncSettings();
+
+    if (toggle) toggle.checked = cfg.enabled;
+    if (intervalInput) {
+        intervalInput.value = String(cfg.interval);
+        intervalInput.disabled = !cfg.enabled;
+        intervalInput.style.opacity = cfg.enabled ? '1' : '0.6';
+    }
+    if (desc) {
+        desc.textContent = cfg.enabled
+            ? `已开启：本地数据变更后，每 ${cfg.interval} 分钟后台自动上传一次`
+            : '关闭状态';
+    }
+};
+
+window.applyCloudAutoSyncSettings = function(reason) {
+    const cfg = getNormalizedCloudAutoSyncSettings();
+    if (!cfg.enabled) {
+        cloudAutoSyncDirty = false;
+    }
+    manageCloudAutoSyncTimer();
+    if (typeof throttledSaveData === 'function') throttledSaveData();
+    if (typeof window.syncCloudAutoSyncSettingsUI === 'function') {
+        window.syncCloudAutoSyncSettingsUI();
+    }
+    updateCloudSyncStatusUI({
+        statusText: getCloudAutoSyncStatusText()
+    });
+};
+
 function askSupabaseConfigSimple() {
     return new Promise(resolve => {
         const modal = document.getElementById('supabase-config-modal');
@@ -742,10 +853,11 @@ async function fetchCloudBackupRow() {
     return ret.data || null;
 }
 
-async function uploadLocalSnapshotToCloud(reason) {
+async function uploadLocalSnapshotToCloud(reason, options) {
     const client = getSupabaseClient();
     if (!client) throw new Error('尚未配置 Supabase');
 
+    const opts = options || {};
     const payloadObject = await buildFullBackupPayloadObject();
     const jsonForMeta = JSON.stringify(payloadObject);
 
@@ -758,7 +870,7 @@ async function uploadLocalSnapshotToCloud(reason) {
 
     const dbPayload = {
         id: CLOUD_SYNC_SINGLE_BACKUP_ID,
-        backup_json: payloadObject, // Pass the object
+        backup_json: payloadObject,
         updated_at: meta.updated_at,
         size_bytes: meta.size_bytes,
         hash: meta.hash,
@@ -772,14 +884,17 @@ async function uploadLocalSnapshotToCloud(reason) {
         .single();
 
     if (ret.error) throw ret.error;
-    
+
     setCloudSyncMeta(meta);
 
-    updateCloudSyncStatusUI({
-        statusText: '云端已连接，最近一次已上传',
-        localMeta: meta,
-        cloudMeta: ret.data
-    });
+    if (!opts.silent) {
+        updateCloudSyncStatusUI({
+            statusText: '云端已连接，最近一次已上传',
+            localMeta: meta,
+            cloudMeta: ret.data
+        });
+    }
+
     return ret.data;
 }
 
@@ -989,8 +1104,11 @@ async function refreshCloudSyncInfo() {
     }
     try {
         const cloudMeta = await fetchCloudBackupMeta();
+        const autoSyncStatus = getCloudAutoSyncStatusText();
         updateCloudSyncStatusUI({
-            statusText: cloudMeta ? '已连接云端，可随时同步' : '已配置，但云端还没有备份',
+            statusText: cloudMeta
+                ? `已连接云端，可随时同步｜${autoSyncStatus}`
+                : `已配置，但云端还没有备份｜${autoSyncStatus}`,
             cloudMeta: cloudMeta
         });
     } catch (e) {
@@ -1013,6 +1131,7 @@ window.openSupabaseGuide = async function(openWebsite) {
             showNotification('你还没有保存云端配置', 'warning', 3500);
             return;
         }
+        manageCloudAutoSyncTimer();
         await refreshCloudSyncInfo();
         showNotification('云端配置已保存成功', 'success', 2500);
     }
@@ -1036,12 +1155,21 @@ window.syncSupabaseCloud = async function() {
 window.markLocalBackupUpdated = async function(reason) {
     try {
         await buildLocalSnapshotMeta(reason || 'local-edit');
-        updateCloudSyncStatusUI({ statusText: '本地数据已更新' });
+        cloudAutoSyncDirty = true;
+        manageCloudAutoSyncTimer();
+        if (typeof window.syncCloudAutoSyncSettingsUI === 'function') {
+            window.syncCloudAutoSyncSettingsUI();
+        }
+        updateCloudSyncStatusUI({ statusText: getCloudAutoSyncStatusText() });
     } catch (e) {}
 };
 
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
+        manageCloudAutoSyncTimer();
+        if (typeof window.syncCloudAutoSyncSettingsUI === 'function') {
+            window.syncCloudAutoSyncSettingsUI();
+        }
         if (window.supabase) refreshCloudSyncInfo();
     }, 800);
 });

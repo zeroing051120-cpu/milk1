@@ -74,19 +74,64 @@
 
 function loadMoreHistory() {
     const historyLoader = document.getElementById('history-loader');
+    const container = DOMElements && DOMElements.chatContainer;
     const currentOldestMsgIndex = messages.length - displayedMessageCount;
+
+    if (!container) return;
+    if (isLoadingHistory) return;
 
     if (currentOldestMsgIndex <= 0) {
         if (historyLoader) historyLoader.style.display = 'none';
         return;
     }
-    
+
+    isLoadingHistory = true;
     if (historyLoader) historyLoader.style.display = 'flex';
 
+    const visibleWrappers = Array.from(container.querySelectorAll('.message-wrapper'));
+    const firstVisible = visibleWrappers.find(function(el) {
+        return el.offsetTop + el.offsetHeight >= container.scrollTop;
+    }) || visibleWrappers[0] || null;
+
+    const anchorId = firstVisible ? firstVisible.dataset.msgId : null;
+    const anchorTop = firstVisible ? firstVisible.getBoundingClientRect().top : 0;
+
+    const prevVisibility = container.style.visibility;
+    const prevOverflow = container.style.overflow;
+    const prevScrollBehavior = container.style.scrollBehavior;
+    const prevOpacity = container.style.opacity;
+
+    container.style.opacity = '0.015';
+    container.style.visibility = 'hidden';
+    container.style.overflow = 'hidden';
+    container.style.scrollBehavior = 'auto';
+
     setTimeout(() => {
-        displayedMessageCount += HISTORY_BATCH_SIZE;
+        displayedMessageCount = Math.min(messages.length, displayedMessageCount + HISTORY_BATCH_SIZE);
         renderMessages(true);
-    }, 300);
+
+        requestAnimationFrame(() => {
+            if (anchorId) {
+                const newAnchor = container.querySelector('[data-msg-id="' + anchorId + '"]');
+                if (newAnchor) {
+                    const newTop = newAnchor.getBoundingClientRect().top;
+                    container.scrollTop += (newTop - anchorTop);
+                }
+            }
+
+            requestAnimationFrame(() => {
+                container.style.opacity = prevOpacity || '';
+                container.style.visibility = prevVisibility || '';
+                container.style.overflow = prevOverflow || '';
+                container.style.scrollBehavior = prevScrollBehavior || '';
+
+                if (historyLoader) {
+                    historyLoader.style.display = (messages.length > displayedMessageCount) ? 'flex' : 'none';
+                }
+                isLoadingHistory = false;
+            });
+        });
+    }, 120);
 }
 
 
@@ -141,7 +186,9 @@ autoSendInterval: 5,
         partnerPokeCustomSoundUrl: '',
         soundVolume: 0.15,
         bottomCollapseMode: false,
-        emojiMixEnabled: true
+        emojiMixEnabled: true,
+        cloudAutoSyncEnabled: false,
+        cloudAutoSyncInterval: 10
             };
         }
 
@@ -1142,7 +1189,8 @@ const addMessage = (message) => {
     }
 
     // --- Update previous message if needed ---
-    const lastWrapper = container.querySelector('.message-wrapper:last-of-type');
+    const existingWrappers = container.querySelectorAll('.message-wrapper');
+    const lastWrapper = existingWrappers.length > 0 ? existingWrappers[existingWrappers.length - 1] : null;
     if (lastWrapper && prevMsg) {
         const currentTs = new Date(message.timestamp).getTime();
         const prevTs = new Date(prevMsg.timestamp).getTime();
@@ -1167,7 +1215,7 @@ const addMessage = (message) => {
     const newMsgFragment = createMessageFragment(message, prevMsg, null, lastSenderRef);
     
     const spacer = container.querySelector('div[style*="flex: 1"]');
-    if (spacer) {
+    if (spacer && spacer === container.lastElementChild) {
         spacer.before(newMsgFragment);
     } else {
         container.appendChild(newMsgFragment);
@@ -2054,7 +2102,7 @@ window.initializeSession = async function() {
 document.addEventListener('DOMContentLoaded', function() {
     const chatArea = document.querySelector('.main-chat-area');
     const historyLoader = document.getElementById('history-loader');
-
+    
     if (chatArea && historyLoader) {
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting && messages.length > displayedMessageCount) {
@@ -2065,9 +2113,9 @@ document.addEventListener('DOMContentLoaded', function() {
             rootMargin: '200px 0px 0px 0px',
             threshold: 0.01
         });
-
         observer.observe(historyLoader);
     }
 });
+
 
 
