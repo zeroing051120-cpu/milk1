@@ -90,11 +90,15 @@ function deduplicateContentArray(arr, baseSystemArray = []) {
             setTimeout(() => URL.revokeObjectURL(url), 2000);
         }
 
-        localforage.config({
-            driver: [localforage.INDEXEDDB, localforage.WEBSQL, localforage.LOCALSTORAGE],
-            name: 'ChatApp_V3', version: 1.0, storeName: 'chat_data',
-            description: 'Storage for Chat App V3'
-        });
+        if (typeof localforage !== 'undefined') {
+            localforage.config({
+                driver: [localforage.INDEXEDDB, localforage.WEBSQL, localforage.LOCALSTORAGE],
+                name: 'ChatApp_V3', version: 1.0, storeName: 'chat_data',
+                description: 'Storage for Chat App V3'
+            });
+        } else {
+            console.warn('[storage] localforage 未加载，IndexedDB 能力不可用，将退回 localStorage/内存兜底');
+        }
 
         function showNotification(message, type = 'info', duration = 3000) {
             const existing = document.querySelector('.notification');
@@ -253,8 +257,17 @@ function deduplicateContentArray(arr, baseSystemArray = []) {
         };
 
         const throttledSaveData = () => {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(saveData, 500);
+            if (typeof saveTimeout !== 'undefined') clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                try {
+                    const maybePromise = saveData();
+                    if (maybePromise && typeof maybePromise.catch === 'function') {
+                        maybePromise.catch(e => console.error('[throttledSaveData] 保存失败:', e));
+                    }
+                } catch (e) {
+                    console.error('[throttledSaveData] 保存失败:', e);
+                }
+            }, 500);
         };
 
 async function applyCustomFont(url) {
@@ -991,8 +1004,9 @@ async function compareAndSyncCloudBackup() {
     let client = getSupabaseClient();
     if (!client) {
         await ensureSupabaseTableGuide();
-        const cfg = askSupabaseConfigSimple();
+        const cfg = await askSupabaseConfigSimple();
         if (!cfg) return;
+        window.__chatappSupabaseClient = null;
         client = getSupabaseClient();
         if (!client) {
             showNotification('Supabase 客户端初始化失败', 'error');

@@ -284,6 +284,7 @@ autoSendInterval: 5,
 const loadData = async () => {
     try {
         settings = getDefaultSettings();
+
         
         const results = await Promise.allSettled([
             localforage.getItem(getStorageKey('chatSettings')),
@@ -1482,6 +1483,13 @@ if (!isBatchMode && type === 'normal') {
         (function() {
             var inputArea = document.querySelector('.input-area-wrapper');
             if (!inputArea) return;
+            if (typeof ResizeObserver === 'undefined') {
+                window.addEventListener('resize', function() {
+                    var tiW = document.getElementById('typing-indicator-wrapper');
+                    if (tiW && tiW.style.display !== 'none') positionTypingIndicator();
+                });
+                return;
+            }
             var ro = new ResizeObserver(function() {
                 var tiW = document.getElementById('typing-indicator-wrapper');
                 if (tiW && tiW.style.display !== 'none') positionTypingIndicator();
@@ -2103,7 +2111,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const chatArea = document.querySelector('.main-chat-area');
     const historyLoader = document.getElementById('history-loader');
     
-    if (chatArea && historyLoader) {
+    if (chatArea && historyLoader && typeof IntersectionObserver !== 'undefined') {
         const observer = new IntersectionObserver((entries) => {
             if (entries[0].isIntersecting && messages.length > displayedMessageCount) {
                 loadMoreHistory();
